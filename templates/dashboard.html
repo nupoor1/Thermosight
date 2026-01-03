@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-3xl font-bold mb-4">Dashboard</h1>
+
+{% if efficiency_score is not none %}
+<div class="bg-white p-4 rounded shadow mb-4">
+  <h2 class="text-xl font-bold">Overall Efficiency Score: {{ efficiency_score }}/100</h2>
+  <p>Total Estimated Cost for this CSV: <span class="font-bold text-red-600">${{ total_cost }}</span></p>
+  <p>Projected Monthly Cost: <span class="font-bold text-red-700">${{ total_cost * 30 }}</span></p>
+  <p>Wasted HVAC Runtime with No Occupancy: <span class="font-bold text-yellow-600">{{ occupancy_wasted }} minutes</span></p>
+</div>
+{% endif %}
+
+<div class="bg-white p-4 rounded shadow mb-6">
+  <form method="POST" enctype="multipart/form-data" class="flex items-center gap-4">
+    <label class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded">
+      Choose CSV
+      <input type="file" name="csv_file" class="hidden" required id="csvInput">
+    </label>
+    <span id="fileName" class="text-gray-600">No file chosen</span>
+    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold">
+      Upload CSV
+    </button>
+  </form>
+</div>
+
+<div class="bg-white p-4 rounded shadow mb-6 overflow-x-auto">
+  <table class="min-w-full divide-y divide-gray-200 text-center">
+    <thead class="bg-gray-50">
+      <tr>
+        <th>Issue</th>
+        <th>Time</th>
+        <th>Evidence</th>
+        <th>Cost</th>
+        <th>Severity</th>
+        <th>Notes</th>
+        <th>Action Required</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if issues %}
+        {% for i in issues %}
+          <tr class="hover:bg-gray-100">
+            <td>{{ i.issue }}</td>
+            <td>{{ i.time }}</td>
+            <td>{{ i.evidence }}</td>
+            <td>${{ i.cost }}</td>
+            <td class="{% if i.severity=='High' %}text-red-600{% elif i.severity=='Medium' %}text-yellow-600{% else %}text-green-600{% endif %}">{{ i.severity }}</td>
+            <td>{{ i.notes }}</td>
+            <td>{{ i.action }}</td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="7" class="text-center text-gray-500 py-4">No issues detected. Efficiency is high!</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Charts -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+  <div class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-bold mb-2">Efficiency Trend (All Uploads)</h2>
+    <canvas id="efficiencyChart"></canvas>
+  </div>
+
+  <div class="bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-bold mb-2">Wasted Runtime (Occupancy=0)</h2>
+    <canvas id="occupancyChart"></canvas>
+  </div>
+</div>
+
+<div class="bg-white p-4 rounded shadow mb-6">
+  <h2 class="text-xl font-bold mb-2">Previous Uploads</h2>
+  <ul id="logsList">
+    {% for log in previous_logs %}
+      <li>{{ log.date }} - {{ log.filename }} - Score: {{ log.score }}/100</li>
+    {% endfor %}
+    {% if not previous_logs %}
+      <li class="text-gray-500">No previous uploads</li>
+    {% endif %}
+  </ul>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const csvInput = document.getElementById('csvInput');
+  const fileName = document.getElementById('fileName');
+  csvInput.addEventListener('change', () => {
+    fileName.textContent = csvInput.files.length ? csvInput.files[0].name : "No file chosen";
+  });
+
+  const efficiencyCtx = document.getElementById('efficiencyChart').getContext('2d');
+  const chartDates = {{ previous_logs|map(attribute='date')|list|safe }}.slice().reverse();
+  const chartScores = {{ previous_logs|map(attribute='score')|list|safe }}.slice().reverse();
+  const efficiencyChart = new Chart(efficiencyCtx, {
+    type: 'line',
+    data: {
+      labels: chartDates,
+      datasets: [{
+        label: 'Efficiency Score',
+        data: chartScores,
+        borderColor: 'rgba(75, 192, 192, 1)',
+        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: { scales: { y: { min: 0, max: 100 } } }
+  });
+
+  const occupancyCtx = document.getElementById('occupancyChart').getContext('2d');
+  const occupancyChart = new Chart(occupancyCtx, {
+    type: 'bar',
+    data: {
+      labels: [['Minutes HVAC', 'ran with', 'occupancy = 0']],
+      datasets: [{
+        label: 'Minutes',
+        data: [{{ occupancy_wasted }}],
+        backgroundColor: 'rgba(255, 99, 132, 0.6)'
+      }]
+    },
+    options: { 
+      indexAxis: 'y', 
+      scales: { 
+        x: { beginAtZero: true },
+        y: {
+          ticks: {
+            callback: function(value, index, ticks) {
+              return this.getLabelForValue(value);
+            },
+            align: 'center',
+            crossAlign: 'center'
+          }
+        }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+</script>
+{% endblock %}
