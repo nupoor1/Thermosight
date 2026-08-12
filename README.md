@@ -20,7 +20,7 @@ Thermosight is a web app for an HVAC diagnostics workflow: a visitor can request
 - **Data processing:** pandas
 - **Frontend:** Jinja2, Tailwind CSS, Chart.js
 
-## Limitations / what I'd do differently
+## Limitations
 
 - **Score calibration.** The efficiency score formula is a rough heuristic instead of being derived from real HVAC benchmarking data. The 30% waste benchmark and the per-issue cost estimates ($60/$40/$20) are assumed constants. Calibrating those against actual industry figures or historical building data is the main thing that would make the score trustworthy.
 - **Upload retention.** Uploads accumulate in `uploads/` indefinitely with no retention policy. Each upload is size-capped and extension-checked, but there's no expiry, archival, or per-user storage quota. For a real deployment, I would move that to object storage (S3-style) with a lifecycle rule.
