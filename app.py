@@ -8,9 +8,11 @@ from datetime import datetime
 from collections import Counter
 
 app = Flask(__name__)
-app.secret_key = "ysfdjhfkvzvFHUILEHAOIUer38t4wat4yt73wy73EESFOEAIEF98eutnrstrsyf8974wyt4w8ynrw78YCNA8O"
+app.secret_key = os.environ.get("SECRET_KEY", "dev-only-insecure-key-do-not-use-in-production")
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB
+ALLOWED_EXTENSIONS = {'csv'}
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -125,9 +127,20 @@ def logout():
     return redirect(url_for("index"))
 
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
 # CSV analyis function
 def analyze_csv(file_path):
     df = pd.read_csv(file_path)
+
+    required_columns = {'temp', 'target_temp', 'runtime', 'occupancy'}
+    if not required_columns.intersection(df.columns):
+        raise ValueError(
+            f"CSV must contain at least one of: {', '.join(sorted(required_columns))}"
+        )
+
     issues = []
 
     for _, row in df.iterrows():
@@ -198,13 +211,22 @@ def dashboard():
 
     if request.method == "POST":
         file = request.files.get('csv_file')
-        if file:
+        if file and file.filename:
+            if not allowed_file(file.filename):
+                flash("Please upload a .csv file.", "error")
+                return redirect(url_for('dashboard'))
+
             filename = f"{current_user.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}"
             path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
             file.save(path)
 
-            issues, efficiency_score, total_cost, occupancy_wasted = analyze_csv(path)
+            try:
+                issues, efficiency_score, total_cost, occupancy_wasted = analyze_csv(path)
+            except (pd.errors.ParserError, pd.errors.EmptyDataError, ValueError) as e:
+                os.remove(path)
+                flash(f"Couldn't process that CSV: {e}", "error")
+                return redirect(url_for('dashboard'))
 
             db.session.add(Log(
                 user_id=current_user.id,
@@ -229,4 +251,5 @@ def dashboard():
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    debug_mode = os.environ.get("FLASK_DEBUG", "1") == "1"
+    app.run(debug=debug_mode)

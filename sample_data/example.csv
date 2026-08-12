@@ -1,0 +1,8 @@
+﻿time,temp,target_temp,cycle_time,occupancy,runtime
+Mon 2 PM,21,24,6,1,80
+Tue 10 AM,24,24,4,1,30
+Wed 3 PM,23,24,10,0,15
+Thu 5 PM,17,22,7,1,130
+Fri 1 PM,29,25,6,2,90
+Sat 11 AM,22,24,5,0,60
+Sun 8 PM,20,22,3,1,25
